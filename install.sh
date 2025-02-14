@@ -412,7 +412,7 @@ configure() {
     pkg_name="${exe_name}-${os}-${cpu}.${pkg_ext}"
   fi
   apply_version
-  url="https://github.com/AdguardTeam/AdGuardCLI/releases/download/${version}-${channel}/${pkg_name}"
+  url="https://github.com/AdguardTeam/AdGuardCLI/releases/download/v${version}-${channel}/${pkg_name}"
 
   readonly output_dir url pkg_name
 
