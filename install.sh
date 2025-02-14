@@ -412,9 +412,7 @@ configure() {
     pkg_name="${exe_name}-${os}-${cpu}.${pkg_ext}"
   fi
   apply_version
-#  todo: uncomment when the package is available on GitHub
-#  url="<github_url>${version}-${channel}/${pkg_name}"
-  url="https://uploads.adguard.org/${pkg_name}"
+  url="https://github.com/AdguardTeam/AdGuardCLI/releases/download/${version}-${channel}/${pkg_name}"
 
   readonly output_dir url pkg_name
 
