@@ -296,7 +296,7 @@ unpack() {
   if [ "$local_install" -ne '1' ]; then
     $remove_command "$pkg_name"
     dir_name=$(echo "${pkg_name}" | sed -E -e 's/(.*)(\.tar\.gz|\.zip)/\1/')
-    if [ -d "${output_dir}/${dir_name}/"]; then
+    if [ -d "${output_dir}/${dir_name}/" ]; then
       mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
       rmdir "${output_dir}/${dir_name}"
     fi
