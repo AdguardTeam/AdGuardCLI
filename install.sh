@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 
 # AdGuard CLI installation script
 
-set -e -f -u
+set -e -u
 
 # Function log is an echo wrapper that writes to stderr if the caller
 # requested verbosity level greater than 0.  Otherwise, it does nothing.
