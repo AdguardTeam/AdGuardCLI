@@ -297,6 +297,11 @@ unpack() {
     $remove_command "$pkg_name"
     dir_name=$(echo "${pkg_name}" | sed -E -e 's/(.*)(\.tar\.gz|\.zip)/\1/')
     if [ -d "${output_dir}/${dir_name}/" ]; then
+      if [ -f "${output_dir}/adguard_root_helper" ]
+      then
+        mv -f "${output_dir}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
+        mv -f "${output_dir}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
+      fi
       mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
       rmdir "${output_dir}/${dir_name}"
     fi
@@ -343,6 +348,10 @@ unpack() {
 
 # Function unpack unpacks the passed archive depending on it's extension.
 check_package() {
+  if [ "$uninstall" -eq '1' ]; then
+    return 0
+  fi
+
   log "Checking downloaded package '$pkg_name'"
   case "$pkg_ext"
   in
@@ -368,6 +377,10 @@ check_package() {
 
 # Function parse_version parses the version from the passed script and it's arguments.
 parse_version() {
+  if [ "$uninstall" -eq '1' ]; then
+    return 0
+  fi
+
   if [ -n "$version" ]; then
     return 0
   fi
@@ -441,6 +454,7 @@ handle_uninstall() {
   fi
 
   remove_existing
+  remove_existing_uninstall
 
   # Check if the directory is empty
   if [ -z "$(ls -A "${output_dir}")" ]
@@ -505,9 +519,6 @@ remove_existing() {
   # Remove .sig file
   rm -f "${output_dir}/${exe_name}.sig"
   log "'${exe_name}.sig' has been removed from '${output_dir}'"
-  # Remove .nosymlink file
-  rm -f "${output_dir}/.nosymlink"
-  log "'.nosymlink' has been removed from '${output_dir}'"
   # Remove install_cert.sh file
   rm -f "${output_dir}/${install_cert_script}"
   log "'${install_cert_script}' has been removed from '${output_dir}'"
@@ -517,6 +528,18 @@ remove_existing() {
   # Remove defaults.zip file
   rm -f "${output_dir}/${defaults_zip}"
   log "'${defaults_zip}' has been removed from '${output_dir}'"
+}
+
+remove_existing_uninstall() {
+    # Remove .nosymlink file
+    rm -f "${output_dir}/.nosymlink"
+    log "'.nosymlink' has been removed from '${output_dir}'"
+    # Remove adguard_root_helper
+    rm -f "${output_dir}/adguard_root_helper"
+    log "'adguard_root_helper' has been removed from '${output_dir}'"
+    # Remove adguard_root_helper.sig
+    rm -f "${output_dir}/adguard_root_helper.sig"
+    log "'adguard_root_helper.sig' has been removed from '${output_dir}'"
 }
 
 # Function checks if the package is already present in the output directory.
@@ -552,6 +575,10 @@ handle_existing() {
 
 # Function download downloads the package from the url.
 download() {
+  if [ "$uninstall" -eq '1' ]; then
+    return 0
+  fi
+
   log "Downloading AdGuard CLI package: $url"
 
   # Temporary file name for testing file creation
@@ -619,7 +646,7 @@ channel='nightly'
 verbose='0'
 cpu=''
 os=''
-version='0.99.30'
+version='0.99.43'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
