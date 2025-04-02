@@ -299,8 +299,8 @@ unpack() {
     if [ -d "${output_dir}/${dir_name}/" ]; then
       if [ -f "${output_dir}/adguard_root_helper" ]
       then
-        mv -f "${output_dir}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
-        mv -f "${output_dir}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
+        mv -f "${output_dir}/${dir_name}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
+        mv -f "${output_dir}/${dir_name}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
       fi
       mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
       rmdir "${output_dir}/${dir_name}"
