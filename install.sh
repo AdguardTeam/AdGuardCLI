@@ -297,11 +297,15 @@ unpack() {
     $remove_command "$pkg_name"
     dir_name=$(echo "${pkg_name}" | sed -E -e 's/(.*)(\.tar\.gz|\.zip)/\1/')
     if [ -d "${output_dir}/${dir_name}/" ]; then
+      # Special handling for already installed root helper. It destination file exists, new root helper
+      # will be placed into adguard_root_helper.new. Then, adguard_root_helper after checking signature
+      # will replace itself with the new file.
       if [ -f "${output_dir}/adguard_root_helper" ]
       then
         mv -f "${output_dir}/${dir_name}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
         mv -f "${output_dir}/${dir_name}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
       fi
+      # This move includes root_helper if it was not moved in previous step.
       mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
       rmdir "${output_dir}/${dir_name}"
     fi
@@ -646,7 +650,7 @@ channel='nightly'
 verbose='0'
 cpu=''
 os=''
-version='0.99.43'
+version='0.99.56'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
