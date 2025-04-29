@@ -272,9 +272,9 @@ verify_hint() {
   if [ -f "${output_dir}/${exe_name}.sig" ]
   then
     echo
-    echo "To verify the installation, run the following command to import the public key and verify the signature:"
-    echo "    gpg --keyserver 'keys.openpgp.org' --recv-key '28645AC9776EC4C00BCE2AFC0FE641E7235E2EC6'"
-    echo "    gpg --verify ${output_dir}/${exe_name}.sig ${output_dir}/${exe_name}"
+    echo "To verify the installation, run the following command to check the OpenSSL signature:"
+    echo "    curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/master/adguard_ed25519_pubkey.pem -o adguard_ed25519_pubkey.pem"
+    echo "    openssl pkeyutl -verify -inkey adguard_ed25519_pubkey.pem -pubin -sigfile ${output_dir}/${exe_name}.sig -in ${output_dir}/${exe_name} -rawin"
   fi
 }
 
@@ -650,7 +650,7 @@ channel='beta'
 verbose='0'
 cpu=''
 os=''
-version='0.99.51'
+version='1.0.12'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
