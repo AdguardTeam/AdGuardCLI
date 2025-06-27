@@ -331,7 +331,7 @@ unpack() {
     [yY]|[yY][eE][sS])
       # Create a symlink with an absolute path
       absolute_path=$(readlink -f "${output_dir}/${exe_name}")
-      if ln -sf "${absolute_path}" /usr/local/bin 2> /dev/null || sudo ln -sf "${absolute_path}" /usr/local/bin; then
+      if ln -sf "${absolute_path}" /usr/local/bin/ 2> /dev/null || sudo ln -sf "${absolute_path}" /usr/local/bin/; then
         symlink_exists='1'
         log "Binary has been linked to '/usr/local/bin'"
       else
@@ -650,7 +650,7 @@ channel='nightly'
 verbose='0'
 cpu=''
 os=''
-version='1.0.14'
+version='1.1.16'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
