@@ -153,14 +153,11 @@ set_cpu() {
   # Validate.
   case "$cpu"
   in
-  ('x86_64'|'armv7'|'aarch64')
+  ('x86_64'|'aarch64')
     # All right, go on.
     ;;
-  ('mips'|'mipsel')
-    # That's right too.
-    ;;
   (*)
-    error_exit "Unsupported cpu type: $cpu"
+    error_exit "Unsupported CPU type: $cpu. Only x86_64 and aarch64 are supported."
     ;;
   esac
 
@@ -331,7 +328,7 @@ unpack() {
     [yY]|[yY][eE][sS])
       # Create a symlink with an absolute path
       absolute_path=$(readlink -f "${output_dir}/${exe_name}")
-      if ln -sf "${absolute_path}" /usr/local/bin 2> /dev/null || sudo ln -sf "${absolute_path}" /usr/local/bin; then
+      if ln -sf "${absolute_path}" /usr/local/bin/ 2> /dev/null || sudo ln -sf "${absolute_path}" /usr/local/bin/; then
         symlink_exists='1'
         log "Binary has been linked to '/usr/local/bin'"
       else
@@ -418,8 +415,8 @@ configure() {
     log "Update channel: $channel"
   fi
 
-  set_cpu
   set_os
+  set_cpu
   parse_version
   check_out_dir
 
@@ -650,7 +647,7 @@ channel='beta'
 verbose='0'
 cpu=''
 os=''
-version='1.0.15'
+version='1.1.46'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
