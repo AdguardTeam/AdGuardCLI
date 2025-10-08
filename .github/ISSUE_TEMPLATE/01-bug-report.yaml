@@ -1,0 +1,104 @@
+name: 🐞 Bug report
+description: If you found something that we should know about
+labels: "Bug"
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to fill out this bug report!
+  - type: checkboxes
+    attributes:
+      label: Please answer the following questions for yourself before submitting an issue
+      options:
+        - label: Filters were updated before reproducing an issue
+          required: true
+        - label: I checked the [knowledge base](https://adguard.com/kb/) and found no answer
+          required: true
+        - label: I checked to make sure that this issue has not already been filed
+          required: true
+  - type: input
+    id: app_version
+    attributes:
+      label: AdGuard CLI version
+      description: What version of our application are you running?
+      placeholder: For example, 1.1.45
+    validations:
+      required: true
+  - type: input
+    id: br_version
+    attributes:
+      label: Browser version
+      description: What browser do you use?
+      placeholder: For example, Chrome 124
+    validations:
+      required: false
+      
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version
+      description: What operating system do you use?
+      placeholder: For example, Ubuntu 22.04.2
+    validations:
+      required: true
+      
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Issue Details
+      description: Please provide a set of steps to reproduce the issue.
+      placeholder:
+      value: |
+        Steps to reproduce:
+        1.
+        2.
+        3.
+    validations:
+      required: true
+      
+  - type: textarea
+    id: how_it_should_be
+    attributes:
+      label: Expected Behavior
+      placeholder: A clear and concise description of what you expected to happen.
+    validations:
+      required: false
+      
+  - type: textarea
+    id: how_it_is
+    attributes:
+      label: Actual Behavior
+      placeholder: A clear description of what happened instead.
+    validations:
+      required: true
+      
+  - type: textarea
+    id: screens
+    attributes:
+      label: Screenshots
+      description: |
+        If applicable add screenshots explaining your problem.
+        You can drag and drop images or paste them from clipboard.
+        Use `<details> </details>` tag to hide screenshots under the spoiler.
+      placeholder: If applicable add screenshots explaining your problem.
+      value: |
+          <details><summary>Screenshot 1</summary>
+
+          <!-- paste screenshot here -->
+
+          </details>
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      placeholder: Add any other context about the problem here.
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        Upvote [important issues](https://github.com/AdguardTeam/AdGuardCLI/issues?q=is%3Aissue%20is%3Aopen%20sort%3Areactions-%2B1-desc) with a :+1:
