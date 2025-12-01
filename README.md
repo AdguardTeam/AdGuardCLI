@@ -55,6 +55,8 @@ Nightly channel:
 curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/nightly/install.sh | sh -s -- -v
 ```
 
+Please see [our Knowledge base](https://adguard.com/kb/adguard-for-linux/installation/) for more info about installation/deinstallation.
+
 ## Verify Releases
 
 Inside an archive file, there is a small file with a `.sig` extension that contains the signature data. In a hypothetical situation where the binary file inside an archive is replaced by someone, you’ll know it isn’t an official release from AdGuard.
