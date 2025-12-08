@@ -23,7 +23,7 @@ error_exit() {
 
 # Function usage prints the note about how to use the script.
 usage() {
-  echo 'Usage: install.sh [-o output_dir] [-v] [-h] [-u]' 1>&2
+  echo 'Usage: install.sh [-o output_dir] [-v] [-h] [-u] [-V version] [-l]' 1>&2
 }
 
 # Function parse_opts parses the options list and validates it's combinations.
@@ -289,23 +289,23 @@ unpack() {
     error_exit "Cannot unpack '$pkg_name'"
   fi
 
-  # Do not remove the package if it was a local install
+  # Move files out of inner directory and delete it
+  dir_name=$(echo "${pkg_name}" | sed -E -e 's/(.*)(\.tar\.gz|\.zip)/\1/')
+  if [ -d "${output_dir}/${dir_name}/" ]; then
+    # Special handling for already installed root helper. If destination file exists, place new file as .new.
+    # Then after checking signature adguard_root_helper will replace itself with the new file.
+    if [ -f "${output_dir}/adguard_root_helper" ]; then
+      mv -f "${output_dir}/${dir_name}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
+      mv -f "${output_dir}/${dir_name}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
+    fi
+    # Move all remaining files into output_dir
+    mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
+    rmdir "${output_dir}/${dir_name}"
+  fi
+
+  # Remove package only for non-local installs
   if [ "$local_install" -ne '1' ]; then
     $remove_command "$pkg_name"
-    dir_name=$(echo "${pkg_name}" | sed -E -e 's/(.*)(\.tar\.gz|\.zip)/\1/')
-    if [ -d "${output_dir}/${dir_name}/" ]; then
-      # Special handling for already installed root helper. It destination file exists, new root helper
-      # will be placed into adguard_root_helper.new. Then, adguard_root_helper after checking signature
-      # will replace itself with the new file.
-      if [ -f "${output_dir}/adguard_root_helper" ]
-      then
-        mv -f "${output_dir}/${dir_name}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
-        mv -f "${output_dir}/${dir_name}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
-      fi
-      # This move includes root_helper if it was not moved in previous step.
-      mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
-      rmdir "${output_dir}/${dir_name}"
-    fi
   fi
 
   log "Package has been unpacked successfully"
@@ -647,7 +647,7 @@ channel='beta'
 verbose='0'
 cpu=''
 os=''
-version='1.1.46'
+version='1.2.20'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
