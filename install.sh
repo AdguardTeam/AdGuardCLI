@@ -23,7 +23,7 @@ error_exit() {
 
 # Function usage prints the note about how to use the script.
 usage() {
-  echo 'Usage: install.sh [-o output_dir] [-v] [-h] [-u]' 1>&2
+  echo 'Usage: install.sh [-o output_dir] [-v] [-h] [-u] [-V version] [-l]' 1>&2
 }
 
 # Function parse_opts parses the options list and validates it's combinations.
@@ -647,7 +647,7 @@ channel='release'
 verbose='0'
 cpu=''
 os=''
-version='1.2.17'
+version='1.2.27'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
