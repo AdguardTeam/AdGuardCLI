@@ -161,6 +161,10 @@ AdGuard CLI behaviour can be configured per-app. See the `apps` section of `prox
 There's a number of pre-configured entries for popular web browsers,
 contained in `browsers.yaml` and included by default.
 
+### HTTPS filtering exclusions
+Domains can be excluded from HTTPS filtering via the `https_exclusions.txt` file, located in AdGuard CLI working directory.
+It is referenced by the `exclusions` key in the `https_filtering` section of `proxy.yaml`.
+
 ## AdGuard VPN CLI interaction
 
 Using AdGuard CLI in **automatic proxy mode** together with AdGuard VPN CLI in **tunnel mode** is impossible due to a
