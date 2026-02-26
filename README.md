@@ -124,7 +124,7 @@ Run `adguard-cli [command]` to use AdGuard CLI. Below are the available commands
                                      - `listen_ports.http_proxy` resets the HTTP listening port to the default value (3129)
                                      - `proxy_mode` resets the proxy mode to the default value (manual)
         - `--all`                Reset all settings to their default values
-- `check-update`                 Check for updates
+- `check-update`                 Check for updates of filters, userscripts, SafebrowsingV2, CRLite, and the app
 - `update`                       Update AdGuard CLI
     - `-v, --verbose`            Show update script output
 - `filters`                      Manage filters
@@ -136,6 +136,22 @@ Run `adguard-cli [command]` to use AdGuard CLI. Below are the available commands
     - `update`                   Update filters
     - `add`                      Add a filter by its ID or name
     - `remove`                   Remove a filter by its ID or name
+- `dns filters`                  Manage DNS filters
+    - `list`                     List installed and added DNS filters
+        - `--all`                View all DNS filters
+    - `add`                      Add a built-in DNS filter by ID or name
+    - `install`                  Install a custom DNS filter from a URL or local file
+        - `--title`              Set a custom title for the filter
+    - `enable`                   Enable a DNS filter by name or ID
+    - `disable`                  Disable a DNS filter by name or ID
+    - `remove`                   Remove a DNS filter by ID
+    - `set-title`                Set a custom title for a DNS filter
+- `userscripts`                  Manage userscripts
+    - `list`                     Show installed userscripts
+    - `install`                  Install a userscript from a URL
+    - `remove`                   Remove a userscript
+    - `enable`                   Enable a userscript
+    - `disable`                  Disable a userscript
 - `export-logs`                  Export logs to a zip file
     - `-o, --output TEXT`        Path to the output artifact. Can be a directory
     - `-f, --force`              Overwrite the output artifact without asking
