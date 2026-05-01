@@ -298,6 +298,11 @@ unpack() {
       mv -f "${output_dir}/${dir_name}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
       mv -f "${output_dir}/${dir_name}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
     fi
+    # Special handling for already installed Native Messaging helper.
+    if [ -f "${output_dir}/adguard_cli_nm" ]; then
+      mv -f "${output_dir}/${dir_name}/adguard_cli_nm" "${output_dir}/adguard_cli_nm.new"
+      mv -f "${output_dir}/${dir_name}/adguard_cli_nm.sig" "${output_dir}/adguard_cli_nm.new.sig"
+    fi
     # Move all remaining files into output_dir
     mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
     rmdir "${output_dir}/${dir_name}"
@@ -454,6 +459,10 @@ handle_uninstall() {
     "${output_dir}/${exe_name}" stop
   fi
 
+  # Remove browser integration manifests (if command exists)
+  log 'Removing browser integration manifests...'
+  "${output_dir}/${exe_name}" install-browser-integration --uninstall 2>/dev/null || true
+
   remove_existing
   remove_existing_uninstall
 
@@ -541,6 +550,12 @@ remove_existing_uninstall() {
     # Remove adguard_root_helper.sig
     rm -f "${output_dir}/adguard_root_helper.sig"
     log "'adguard_root_helper.sig' has been removed from '${output_dir}'"
+    # Remove adguard_cli_nm
+    rm -f "${output_dir}/adguard_cli_nm"
+    log "'adguard_cli_nm' has been removed from '${output_dir}'"
+    # Remove adguard_cli_nm.sig
+    rm -f "${output_dir}/adguard_cli_nm.sig"
+    log "'adguard_cli_nm.sig' has been removed from '${output_dir}'"
 }
 
 # Function checks if the package is already present in the output directory.
@@ -647,7 +662,7 @@ channel='nightly'
 verbose='0'
 cpu=''
 os=''
-version='1.3.45'
+version='1.4.4'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
