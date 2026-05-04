@@ -165,6 +165,12 @@ contained in `browsers.yaml` and included by default.
 Domains can be excluded from HTTPS filtering via the `https_exclusions.txt` file, located in AdGuard CLI working directory.
 It is referenced by the `exclusions` key in the `https_filtering` section of `proxy.yaml`.
 
+## Related community projects
+
+We appreciate community-driven tools built around AdGuard CLI. Here are some community projects:
+
+- [adguard-tray](https://github.com/RiDDiX/adguard-tray) - a system tray controller for adguard-cli on Linux.
+
 ## AdGuard VPN CLI interaction
 
 Using AdGuard CLI in **automatic proxy mode** together with AdGuard VPN CLI in **tunnel mode** is impossible due to a
