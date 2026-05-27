@@ -152,11 +152,11 @@ Run `adguard-cli [command]` to use AdGuard CLI. Below are the available commands
             - `--all`            Show all DNS filters
         - `install`              Install a DNS filter
             - `--title`          Set title for custom DNS filter
-        - `enable`              Enable a DNS filter
-        - `disable`             Disable a DNS filter
+        - `enable`               Enable a DNS filter
+        - `disable`              Disable a DNS filter
         - `add`                  Add a DNS filter by its ID or name
-        - `remove`              Remove a DNS filter by its ID or name
-        - `set-title`           Set title for custom DNS filter
+        - `remove`               Remove a DNS filter by its ID or name
+        - `set-title`            Set title for custom DNS filter
 - `export-logs`                  Export logs to a zip file
     - `-o, --output`            Path to the output artifact. Can be a directory
 - `export-settings`              Export settings to zip
