@@ -202,3 +202,10 @@ These are the two possible solutions:
     - Also note that in this case, in order to avoid a routing loop, the `skip_outbound_proxy` option must be enabled
       for AdGuard VPN CLI in AdGuard CLI's apps configuration section. By default, `skip_outbound_proxy` is enabled for
       all apps with `vpn` in their name, which includes AdGuard VPN CLI.
+
+## Projects that use AdGuard CLI
+
+Please note that these projects are not affiliated with AdGuard, but are made by third-party developers and fans.
+
+- [AdGuard-UI-Linux](https://github.com/dominik-najberg/AdGuard-UI-Linux): unofficial GTK4/libadwaita desktop GUI for AdGuard CLI on Linux, written in Rust, by [@dominik-najberg](https://github.com/dominik-najberg).
+- [adguard-tray](https://github.com/RiDDiX/adguard-tray): system tray app for AdGuard CLI on Linux with filter and userscript management, works on Wayland and X11, by [@RiDDiX](https://github.com/RiDDiX).
