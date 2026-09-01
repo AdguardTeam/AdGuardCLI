@@ -169,11 +169,11 @@ set_cpu() {
   # Validate.
   case "$cpu"
   in
-  ('x86_64'|'aarch64')
+  ('x86_64'|'aarch64'|'armv7')
     # All right, go on.
     ;;
   (*)
-    error_exit "Unsupported CPU type: $cpu. Only x86_64 and aarch64 are supported."
+    error_exit "Unsupported CPU type: $cpu. Only x86_64, aarch64 and armv7 are supported."
     ;;
   esac
 
@@ -708,7 +708,7 @@ channel='nightly'
 verbose='0'
 cpu=''
 os=''
-version='1.5.0-nightly.2'
+version='1.5.0-nightly.5'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
