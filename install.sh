@@ -310,15 +310,15 @@ unpack() {
   if [ -d "${output_dir}/${dir_name}/" ]; then
     # Special handling for already installed root helper. If destination file exists, place new file as .new.
     # Then after checking signature adguard_root_helper will replace itself with the new file.
+    # This is only needed for the root helper: it is self-updating and carries a SUID bit that the
+    # running process must preserve.
     if [ -f "${output_dir}/adguard_root_helper" ]; then
       mv -f "${output_dir}/${dir_name}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
       mv -f "${output_dir}/${dir_name}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
     fi
-    # Special handling for already installed Native Messaging helper.
-    if [ -f "${output_dir}/adguard_cli_nm" ]; then
-      mv -f "${output_dir}/${dir_name}/adguard_cli_nm" "${output_dir}/adguard_cli_nm.new"
-      mv -f "${output_dir}/${dir_name}/adguard_cli_nm.sig" "${output_dir}/adguard_cli_nm.new.sig"
-    fi
+    # Older installers wrongly used the root-helper scheme and left an adguard_cli_nm.new file behind;
+    # nothing ever reads that file, so remove any leftover here.
+    rm -f "${output_dir}/adguard_cli_nm.new" "${output_dir}/adguard_cli_nm.new.sig"
     # Move all remaining files into output_dir
     mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
     rmdir "${output_dir}/${dir_name}"
@@ -602,6 +602,8 @@ remove_existing_uninstall() {
     # Remove adguard_cli_nm.sig
     rm -f "${output_dir}/adguard_cli_nm.sig"
     log "'adguard_cli_nm.sig' has been removed from '${output_dir}'"
+    # Remove stale adguard_cli_nm.new files left by older installers
+    rm -f "${output_dir}/adguard_cli_nm.new" "${output_dir}/adguard_cli_nm.new.sig"
 }
 
 # Function checks if the package is already present in the output directory.
@@ -708,7 +710,7 @@ channel='nightly'
 verbose='0'
 cpu=''
 os=''
-version='1.5.0-nightly.5'
+version='1.5.0-nightly.6'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
