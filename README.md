@@ -35,6 +35,8 @@ AdGuard CLI is the command-line version of AdGuard Ad Blocker. Learn more about 
 
 ## Installation
 
+### Installation script
+
 To install the latest version of AdGuard CLI, run the following command:
 
 Release channel:
@@ -56,6 +58,28 @@ curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/nightly/inst
 ```
 
 Please see [our Knowledge base](https://adguard.com/kb/adguard-for-linux/installation/) for more info about installation/deinstallation.
+
+### macOS (Homebrew)
+
+The easiest way to install AdGuard CLI on macOS is via our [Homebrew tap](https://github.com/AdguardTeam/homebrew-tap):
+
+```shell
+brew install AdguardTeam/tap/adguard-cli
+```
+
+This installs a prebuilt binary of the latest release along with shell completions. To update it later:
+
+```shell
+brew upgrade adguard-cli
+```
+
+To uninstall:
+
+```shell
+brew uninstall adguard-cli
+```
+
+> The Homebrew formula tracks the release channel only. For beta or nightly builds, use the installation script.
 
 ## Verify Releases
 
