@@ -115,6 +115,22 @@ set_os() {
   log "Operating system: $os"
 }
 
+# Function check_macos_version refuses to install or update on macOS versions older
+# than the minimum the binary supports (macOS 11.0, Big Sur). Big Sur reports either
+# "11.x" or, in compatibility mode, "10.16", so 10.16 is the lowest accepted version.
+check_macos_version() {
+  [ "$os" = 'macos' ] || return 0
+
+  macos_version="$( sw_vers -productVersion 2>/dev/null )"
+  # If the version can't be determined, don't block the installation.
+  [ -n "$macos_version" ] || return 0
+
+  if version_lt "$macos_version" '10.16'
+  then
+    error_exit "AdGuard CLI requires macOS 11.0 (Big Sur) or newer, but macOS ${macos_version} was detected."
+  fi
+}
+
 # Function set_cpu sets the cpu if needed and validates the value.
 set_cpu() {
   # For macOS there is universal binary, so we don't need to set cpu
@@ -153,11 +169,11 @@ set_cpu() {
   # Validate.
   case "$cpu"
   in
-  ('x86_64'|'aarch64')
+  ('x86_64'|'aarch64'|'armv7')
     # All right, go on.
     ;;
   (*)
-    error_exit "Unsupported CPU type: $cpu. Only x86_64 and aarch64 are supported."
+    error_exit "Unsupported CPU type: $cpu. Only x86_64, aarch64 and armv7 are supported."
     ;;
   esac
 
@@ -294,15 +310,15 @@ unpack() {
   if [ -d "${output_dir}/${dir_name}/" ]; then
     # Special handling for already installed root helper. If destination file exists, place new file as .new.
     # Then after checking signature adguard_root_helper will replace itself with the new file.
+    # This is only needed for the root helper: it is self-updating and carries a SUID bit that the
+    # running process must preserve.
     if [ -f "${output_dir}/adguard_root_helper" ]; then
       mv -f "${output_dir}/${dir_name}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
       mv -f "${output_dir}/${dir_name}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
     fi
-    # Special handling for already installed Native Messaging helper.
-    if [ -f "${output_dir}/adguard_cli_nm" ]; then
-      mv -f "${output_dir}/${dir_name}/adguard_cli_nm" "${output_dir}/adguard_cli_nm.new"
-      mv -f "${output_dir}/${dir_name}/adguard_cli_nm.sig" "${output_dir}/adguard_cli_nm.new.sig"
-    fi
+    # Older installers wrongly used the root-helper scheme and left an adguard_cli_nm.new file behind;
+    # nothing ever reads that file, so remove any leftover here.
+    rm -f "${output_dir}/adguard_cli_nm.new" "${output_dir}/adguard_cli_nm.new.sig"
     # Move all remaining files into output_dir
     mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
     rmdir "${output_dir}/${dir_name}"
@@ -410,6 +426,24 @@ apply_version() {
   pkg_name=$(echo "${pkg_name}" | sed -E "s/${exe_name}/${exe_name}-${version}/")
 }
 
+# version_lt returns success (0) if the first version is strictly lower than the second.
+# Both arguments are expected in major.minor.patch form; missing parts default to 0.
+version_lt() {
+  a_major=$(echo "$1" | sed -nE 's/^([0-9]+).*$/\1/p'); [ -z "$a_major" ] && a_major=0
+  a_minor=$(echo "$1" | sed -nE 's/^[0-9]+\.([0-9]+).*$/\1/p'); [ -z "$a_minor" ] && a_minor=0
+  a_patch=$(echo "$1" | sed -nE 's/^[0-9]+\.[0-9]+\.([0-9]+).*$/\1/p'); [ -z "$a_patch" ] && a_patch=0
+  b_major=$(echo "$2" | sed -nE 's/^([0-9]+).*$/\1/p'); [ -z "$b_major" ] && b_major=0
+  b_minor=$(echo "$2" | sed -nE 's/^[0-9]+\.([0-9]+).*$/\1/p'); [ -z "$b_minor" ] && b_minor=0
+  b_patch=$(echo "$2" | sed -nE 's/^[0-9]+\.[0-9]+\.([0-9]+).*$/\1/p'); [ -z "$b_patch" ] && b_patch=0
+
+  [ "$a_major" -lt "$b_major" ] && return 0
+  [ "$a_major" -gt "$b_major" ] && return 1
+  [ "$a_minor" -lt "$b_minor" ] && return 0
+  [ "$a_minor" -gt "$b_minor" ] && return 1
+  [ "$a_patch" -lt "$b_patch" ] && return 0
+  return 1
+}
+
 # Main function.
 configure() {
   if [ "$uninstall" -eq '1' ]
@@ -421,6 +455,10 @@ configure() {
   fi
 
   set_os
+  if [ "$uninstall" -ne '1' ]
+  then
+    check_macos_version
+  fi
   set_cpu
   parse_version
   check_out_dir
@@ -433,7 +471,15 @@ configure() {
     pkg_name="${exe_name}-${os}-${cpu}.${pkg_ext}"
   fi
   apply_version
-  url="https://github.com/AdguardTeam/AdGuardCLI/releases/download/v${version}-${channel}/${pkg_name}"
+  # Releases before 1.5.0 use the v${version}-${channel} tag format;
+  # 1.5.0 and later use v${version} (the prerelease suffix is part of the version string).
+  if version_lt "$version" '1.5.0'
+  then
+    release_tag="v${version}-${channel}"
+  else
+    release_tag="v${version}"
+  fi
+  url="https://github.com/AdguardTeam/AdGuardCLI/releases/download/${release_tag}/${pkg_name}"
 
   readonly output_dir url pkg_name
 
@@ -556,6 +602,8 @@ remove_existing_uninstall() {
     # Remove adguard_cli_nm.sig
     rm -f "${output_dir}/adguard_cli_nm.sig"
     log "'adguard_cli_nm.sig' has been removed from '${output_dir}'"
+    # Remove stale adguard_cli_nm.new files left by older installers
+    rm -f "${output_dir}/adguard_cli_nm.new" "${output_dir}/adguard_cli_nm.new.sig"
 }
 
 # Function checks if the package is already present in the output directory.
@@ -662,7 +710,7 @@ channel='beta'
 verbose='0'
 cpu=''
 os=''
-version='1.4.14'
+version='1.5.0-rc.1'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
