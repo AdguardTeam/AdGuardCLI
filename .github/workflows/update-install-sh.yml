@@ -17,7 +17,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com>"
           git config user.name "github-actions[bot]"
           for channel in nightly beta release; do
-            TAG_NAME=$(git tag -l --sort -version:refname | grep -F "${channel}" | head -n1 || true)
+            case "${channel}" in
+              nightly) TAG_PATTERN='-nightly(\.[0-9]+)?$' ;;
+              beta) TAG_PATTERN='-(beta|rc(\.[0-9]+)?)$' ;;
+              release) TAG_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+(-release)?$' ;;
+            esac
+            TAG_NAME=$(git tag -l --sort -version:refname | grep -E -e "${TAG_PATTERN}" | head -n1 || true)
             if [ -n "${TAG_NAME}" ]; then
               git fetch origin ${channel}
               git checkout -B ${channel} origin/${channel}
