@@ -18,7 +18,7 @@ jobs:
           git config user.name "github-actions[bot]"
           for channel in nightly beta release; do
             case "${channel}" in
-              nightly) TAG_PATTERN='-nightly(\.[0-9]+)?$'; BADGE_COLOR='orange' ;;
+              nightly) TAG_PATTERN='-nightly(\.[0-9]+)?$'; BADGE_COLOR='8B5CF6' ;;
               beta) TAG_PATTERN='-(beta|rc(\.[0-9]+)?)$'; BADGE_COLOR='orange' ;;
               release) TAG_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+(-release)?$'; BADGE_COLOR='blue' ;;
             esac
