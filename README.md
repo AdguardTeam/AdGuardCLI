@@ -124,6 +124,7 @@ Run `adguard-cli [command]` to use AdGuard CLI. Below are the available commands
 - `activate`                     Activate the app
 - `reset-license`                Deactivate the app
 - `configure`                    Run the configuration wizard
+- `cert`                         Generate a certificate for HTTPS filtering
 - `start`                        Start AdGuard CLI
 - `restart`                      Restart AdGuard CLI if it is already running
 - `stop`                         Stop AdGuard CLI
@@ -135,6 +136,8 @@ Run `adguard-cli [command]` to use AdGuard CLI. Below are the available commands
     - `set`                      Set a single option in `proxy.yaml`, e.g.:
                                     - `listen_ports.http_proxy` sets the HTTP listen port
                                     - `proxy_mode` sets the proxy mode (manual or auto)
+                                    - `outbound_interface` binds outgoing connections to the specified interface
+                                    - `detect_outbound_interface` enables or disables automatic outbound interface detection via NFQUEUE on Linux (true or false, default: true; see "Outbound interface detection (Linux)")
     - `get`                      Get a single option from `proxy.yaml`
     - `list-add`                 Add a value to a list with the specified key in proxy.yaml, e.g.:
                                     - `filters` adds a file with filters
@@ -192,15 +195,92 @@ Run `adguard-cli [command]` to use AdGuard CLI. Below are the available commands
     - `--chunk`                  Message size in bytes to test (repeatable, default: 16, 256, 1350, 8192, 16384)
 - `install-browser-integration`  Install Native Messaging manifests for browser integration
     - `-u, --uninstall`          Uninstall Native Messaging manifests for browser integration
+- `install-service`              Install adguard-cli as a system service (autostart on boot)
+    - `-u, --uninstall`          Remove the adguard-cli system service
+
+### Outbound interface detection (Linux)
+
+When `detect_outbound_interface: true` is set in `proxy.yaml` (enabled by default), AdGuard CLI in
+automatic proxy mode intercepts outbound SYN packets via NFQUEUE to learn which network interface each
+intercepted connection was originally routed through, and binds the corresponding upstream socket to that
+interface with `SO_BINDTODEVICE`.
 
 ### Per-app AdGuard CLI configuration
 AdGuard CLI behaviour can be configured per-app. See the `apps` section of `proxy.yaml` for details.
 There's a number of pre-configured entries for popular web browsers,
 contained in `browsers.yaml` and included by default.
 
+### Per-app trusted root certificates
+Some apps trust root certificates that are not in the system certificate store. For example, Yandex Browser trusts the
+Russian Trusted Root CA. When AdGuard CLI filters HTTPS traffic of such an app, it can trust these certificates for this
+app only. To do this, add the `add_trusted` field to the entry of the app in the `apps` section of `proxy.yaml` or in
+`browsers.yaml`:
+
+```yaml
+- name: ru.yandex.desktop.yandex-browser
+  action: default
+  add_trusted: ru
+```
+
+AdGuard CLI detects app names only in the automatic proxy mode.
+
 ### HTTPS filtering exclusions
 Domains can be excluded from HTTPS filtering via the `https_exclusions.txt` file, located in AdGuard CLI working directory.
 It is referenced by the `exclusions` key in the `https_filtering` section of `proxy.yaml`.
+
+## Performance Benchmarks
+
+The `speed` command runs cryptographic benchmarks to test the performance of the encryption algorithms used by AdGuard CLI,
+and measures the HTTPS filtering speed.
+
+### Usage
+
+```shell
+adguard-cli speed
+```
+
+This tests AES (CTR, CBC, GCM) and ChaCha20-Poly1305 ciphers with various payload sizes and outputs operations per second and throughput in MB/s.
+
+### Example Output
+
+```
+=== Cryptographic Benchmarks ===
+  11260000 AES-128-CTR encrypt (16 bytes) ops in 1000041us (11259538.4 ops/sec): 180.2 MB/s
+  4614000 AES-128-GCM encrypt (1350 bytes) ops in 1000026us (4613880.0 ops/sec): 6228.7 MB/s
+  398000 AES-256-GCM encrypt (16384 bytes) ops in 1001019us (397594.9 ops/sec): 6514.2 MB/s
+  5133000 CHACHA20-POLY1305 encrypt (16 bytes) ops in 1000163us (5132163.5 ops/sec): 82.1 MB/s
+  99000 CHACHA20-POLY1305 encrypt (16384 bytes) ops in 1008705us (98145.6 ops/sec): 1608.0 MB/s
+
+=== HTTPS Filtering Benchmark ===
+Starting test infrastructure...
+Measuring throughput (50 MB transfer)...
+  HTTPS filtering speed: 449 MB/s
+```
+
+### When to Use
+
+- **Diagnose HTTPS filtering performance issues**: Check if encryption is the bottleneck
+- **Choose optimal cipher**: Compare AES-GCM vs ChaCha20 on your hardware
+- **Verify hardware capabilities**: Confirm AES-NI hardware acceleration is working
+- **Compare devices**: Benchmark different systems before deployment
+
+### Interpreting Results
+
+- **Small packets (16-256 bytes)**: Important for low-latency applications (DNS, IoT)
+- **Medium packets (1350 bytes)**: Typical VPN MTU, shows real-world performance
+- **Large packets (8K-16K bytes)**: Streaming and file transfers
+
+**Higher MB/s = better throughput.**
+
+If AES-GCM performs poorly but ChaCha20-Poly1305 performs well, your CPU likely lacks AES-NI hardware acceleration.
+
+### Custom Payload Sizes
+
+Test specific packet sizes:
+
+```shell
+adguard-cli speed --chunk 1350 --chunk 1400
+```
 
 ## Related community projects
 
