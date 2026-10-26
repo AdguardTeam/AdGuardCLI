@@ -16,17 +16,21 @@ jobs:
           git checkout -B master origin/master
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com>"
           git config user.name "github-actions[bot]"
+          # Stable releases are served through both the release and the beta
+          # channels. The versionsort.suffix setting sorts pre-release tags
+          # (v1.5.0-rc.3) before the stable tag of the same version (v1.5.0).
           for channel in nightly beta release; do
             case "${channel}" in
               nightly) TAG_PATTERN='-nightly(\.[0-9]+)?$'; BADGE_COLOR='8B5CF6' ;;
-              beta) TAG_PATTERN='-(beta|rc(\.[0-9]+)?)$'; BADGE_COLOR='orange' ;;
+              beta) TAG_PATTERN='(-(beta|rc(\.[0-9]+)?)|^v[0-9]+\.[0-9]+\.[0-9]+(-release)?)$'; BADGE_COLOR='orange' ;;
               release) TAG_PATTERN='^v[0-9]+\.[0-9]+\.[0-9]+(-release)?$'; BADGE_COLOR='blue' ;;
             esac
-            TAG_NAME=$(git tag -l --sort -version:refname | grep -E -e "${TAG_PATTERN}" | head -n1 || true)
+            TAG_NAME=$(git -c versionsort.suffix=- tag -l --sort -version:refname | grep -E -e "${TAG_PATTERN}" | head -n1 || true)
             if [ -n "${TAG_NAME}" ]; then
               git fetch origin ${channel}
               git checkout -B ${channel} origin/${channel}
               curl -fsSL "https://github.com/AdguardTeam/AdGuardCLI/releases/download/${TAG_NAME}/install.sh" -o "install.sh"
+              sed -i "s/^channel='[a-z]*'$/channel='${channel}'/" "install.sh"
               printf '{"schemaVersion":1,"label":"%s","message":"%s","color":"%s"}\n' \
                 "${channel}" "${TAG_NAME}" "${BADGE_COLOR}" > "badge.json"
               git add "install.sh" "badge.json"
