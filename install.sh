@@ -24,6 +24,7 @@ error_exit() {
 # Function usage prints the note about how to use the script.
 usage() {
   echo 'Usage: install.sh [-o output_dir] [-v] [-h] [-u] [-V version] [-l]' 1>&2
+  echo "On Linux, an installation into a system binary directory puts the files in '/opt/${bin_file_name}' and creates a symlink in the requested directory." 1>&2
 }
 
 # Function parse_opts parses the options list and validates it's combinations.
@@ -226,7 +227,7 @@ check_owner() {
     log "'$output_dir' exists and is owned by '$USER'"
   else
     log "'$output_dir' exists but is not owned by '$USER'"
-    printf "Would you like to change the ownership of %s to %s? [y/N] " "$output_dir" "$USER"
+    printf "Would you like to change the ownership of %s to %s (so no sudo is needed for the following steps)? [y/N] " "$output_dir" "$USER"
     read -r response < /dev/tty
     case "$response" in
     [yY]|[yY][eE][sS])
@@ -244,6 +245,52 @@ check_owner() {
   fi
 }
 
+# Function restore_selinux_labels sets the SELinux labels of the installation
+# directory. systemd cannot execute files labeled var_t. On Fedora Atomic /opt is
+# a symlink to /var/opt, and the labels of an old installation stay unchanged
+# after an update.
+restore_selinux_labels() {
+  # The script is shared with macOS, and SELinux exists on Linux only.
+  [ "$os" = 'linux' ] || return 0
+  # SELinux is disabled on most distributions.
+  [ -d '/sys/fs/selinux' ] || return 0
+  command -v restorecon > /dev/null 2>&1 || return 0
+
+  echo "Checking the SELinux labels of '$output_dir'"
+  # restorecon needs root only when a label must change, so a healthy
+  # installation does not ask for a password.
+  if ! restorecon "$output_dir" 2> /dev/null
+  then
+    sudo restorecon "$output_dir" || log "Failed to restore the SELinux labels of '$output_dir'"
+  fi
+}
+
+# Function is_listed_system_bin_dir checks whether the path matches one of the
+# known system binary directories without resolving it.
+is_listed_system_bin_dir() {
+  bin_dir="$1"
+  while [ "${bin_dir%/}" != "$bin_dir" ]
+  do
+    bin_dir="${bin_dir%/}"
+  done
+  for sys_dir in $system_bin_dirs
+  do
+    if [ "$bin_dir" = "$sys_dir" ]
+    then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Function is_system_bin_dir checks whether the directory is a system binary directory.
+is_system_bin_dir() {
+  [ "$os" = 'linux' ] || return 1
+  is_listed_system_bin_dir "$1" && return 0
+  bin_dir_resolved="$(cd "$1" 2>/dev/null && pwd -P)" || return 1
+  is_listed_system_bin_dir "$bin_dir_resolved"
+}
+
 # Function check_out_dir requires the output directory to be set and exist.
 check_out_dir() {
   if [ "$output_dir" = '' ]
@@ -255,16 +302,38 @@ check_out_dir() {
   # If output_dir is '.'or '/opt', create inside it `adguard_cli` directory
   if [ "$output_dir" = '.' ] || [ "$output_dir" = '/opt' ]
   then
-    output_dir="${output_dir}/${exe_name}"
+    output_dir="${output_dir}/${bin_file_name}"
   fi
 
   if [ "$uninstall" -eq '1' ]
   then
+    # Follow the symlink to the /opt installation when uninstalling from a system directory.
+    if is_system_bin_dir "$output_dir" && \
+        [ "$(readlink "${output_dir}/${bin_file_name}" 2>/dev/null)" = "/opt/${bin_file_name}/${bin_file_name}" ]
+    then
+      link_dir="$output_dir"
+      output_dir="/opt/${bin_file_name}"
+    fi
     echo "AdGuard CLI will be uninstalled from '$output_dir'"
     return 0
-  else
-    echo "AdGuard CLI will be installed to '$output_dir'"
   fi
+
+  # A missing system binary directory is most likely a typo.  Refuse it before
+  # downloading, otherwise the installation would bypass the /opt redirect.
+  if [ "$os" = 'linux' ] && is_listed_system_bin_dir "$output_dir" && [ ! -d "$output_dir" ]
+  then
+    error_exit "System binary directory '$output_dir' does not exist. Please specify an existing installation directory"
+  fi
+
+  # Install into /opt when the target is a system binary directory and keep a
+  # symlink in the original directory.
+  if is_system_bin_dir "$output_dir"
+  then
+    link_dir="$output_dir"
+    output_dir="/opt/${bin_file_name}"
+  fi
+
+  echo "AdGuard CLI will be installed to '$output_dir'"
 
   set +e
   # Check if directory exists
@@ -277,17 +346,19 @@ check_out_dir() {
     check_owner
   fi
   set -e
+
+  restore_selinux_labels
 }
 
 # Function verify_hint prints a hint about how to verify the installation.
 verify_hint() {
   # Check if `.sig` file exists
-  if [ -f "${output_dir}/${exe_name}.sig" ]
+  if [ -f "${output_dir}/${bin_file_name}.sig" ]
   then
     echo
     echo "To verify the installation, run the following command to check the OpenSSL signature:"
     echo "    curl -fsSL https://raw.githubusercontent.com/AdguardTeam/AdGuardCLI/master/adguard_ed25519_pubkey.pem -o adguard_ed25519_pubkey.pem"
-    echo "    openssl pkeyutl -verify -inkey adguard_ed25519_pubkey.pem -pubin -sigfile ${output_dir}/${exe_name}.sig -in ${output_dir}/${exe_name} -rawin"
+    echo "    openssl pkeyutl -verify -inkey adguard_ed25519_pubkey.pem -pubin -sigfile ${output_dir}/${bin_file_name}.sig -in ${output_dir}/${bin_file_name} -rawin"
   fi
 }
 
@@ -299,30 +370,53 @@ unpack() {
     error_exit "Cannot create directory '$output_dir'"
   fi
 
-  if ! tar -C "$output_dir" -f "$pkg_name" -x -z
+  # Extract into a staging directory first, so a failed unpack does not destroy
+  # the current installation. The trap covers an interrupted move as well.
+  staging_dir="${output_dir}/.install"
+  trap 'rm -rf "${output_dir}/.install"' EXIT
+  rm -rf "$staging_dir"
+  if ! mkdir -p "$staging_dir" || ! tar -C "$staging_dir" -f "$pkg_name" -x -z
   then
+    rm -rf "$staging_dir"
     $remove_command "$pkg_name"
     error_exit "Cannot unpack '$pkg_name'"
   fi
 
-  # Move files out of inner directory and delete it
+  # The archive layout is not part of the contract, so check what was actually
+  # extracted instead of trusting the file name.
   dir_name=$(echo "${pkg_name}" | sed -E -e 's/(.*)(\.tar\.gz|\.zip)/\1/')
-  if [ -d "${output_dir}/${dir_name}/" ]; then
-    # Special handling for already installed root helper. If destination file exists, place new file as .new.
-    # Then after checking signature adguard_root_helper will replace itself with the new file.
-    # This is only needed for the root helper: it is self-updating and carries a SUID bit that the
-    # running process must preserve.
-    if [ -f "${output_dir}/adguard_root_helper" ]; then
-      mv -f "${output_dir}/${dir_name}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
-      mv -f "${output_dir}/${dir_name}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
-    fi
-    # Older installers wrongly used the root-helper scheme and left an adguard_cli_nm.new file behind;
-    # nothing ever reads that file, so remove any leftover here.
-    rm -f "${output_dir}/adguard_cli_nm.new" "${output_dir}/adguard_cli_nm.new.sig"
-    # Move all remaining files into output_dir
-    mv -f "${output_dir}/${dir_name}/"* "${output_dir}"
-    rmdir "${output_dir}/${dir_name}"
+  if [ -f "${staging_dir}/${dir_name}/${bin_file_name}" ]; then
+    unpack_dir="${staging_dir}/${dir_name}"
+  elif [ -f "${staging_dir}/${bin_file_name}" ]; then
+    unpack_dir="$staging_dir"
+  else
+    error_exit "Unexpected archive layout in '$pkg_name'"
   fi
+
+  # Replace the current installation only after the new payload is checked.
+  if [ -f "${output_dir}/${bin_file_name}" ]
+  then
+    remove_existing
+  fi
+  if [ -n "$legacy_dir" ]
+  then
+    remove_legacy_files
+  fi
+
+  # Special handling for already installed root helper. If destination file exists, place new file as .new.
+  # Then after checking signature adguard_root_helper will replace itself with the new file.
+  # This is only needed for the root helper: it is self-updating and carries a SUID bit that the
+  # running process must preserve.
+  if [ -f "${output_dir}/adguard_root_helper" ] && [ -f "${unpack_dir}/adguard_root_helper" ]; then
+    mv -f "${unpack_dir}/adguard_root_helper" "${output_dir}/adguard_root_helper.new"
+    mv -f "${unpack_dir}/adguard_root_helper.sig" "${output_dir}/adguard_root_helper.new.sig"
+  fi
+  # Older installers wrongly used the root-helper scheme and left an adguard_cli_nm.new file behind;
+  # nothing ever reads that file, so remove any leftover here.
+  rm -f "${output_dir}/adguard_cli_nm.new" "${output_dir}/adguard_cli_nm.new.sig"
+  # Move all remaining files into output_dir
+  mv -f "${unpack_dir}/"* "${output_dir}" || error_exit "Cannot move files from '${unpack_dir}'"
+  rm -rf "$staging_dir"
 
   # Remove package only for non-local installs
   if [ "$local_install" -ne '1' ]; then
@@ -331,9 +425,22 @@ unpack() {
 
   log "Package has been unpacked successfully"
 
+  # The installation was redirected from a system directory; link there.
+  if [ -n "$link_dir" ]
+  then
+    if [ -w "$link_dir" ]; then
+      ln -sf "${output_dir}/${bin_file_name}" "${link_dir}/${bin_file_name}"
+    else
+      sudo ln -sf "${output_dir}/${bin_file_name}" "${link_dir}/${bin_file_name}"
+    fi || error_exit "Failed to create symlink in '${link_dir}'"
+    symlink_exists='1'
+    echo "Binary has been linked to '${link_dir}/${bin_file_name}'"
+    return 0
+  fi
+
   # Check for existing symlink or .nosymlink file
-  if [ -L "/usr/local/bin/${exe_name}" ] && \
-      [ "$(readlink -f "/usr/local/bin/${exe_name}")" = "$(readlink -f "${output_dir}/${exe_name}")" ]; then
+  if [ -L "/usr/local/bin/${bin_file_name}" ] && \
+      [ "$(readlink -f "/usr/local/bin/${bin_file_name}")" = "$(readlink -f "${output_dir}/${bin_file_name}")" ]; then
     symlink_exists='1'
   fi
 
@@ -348,7 +455,7 @@ unpack() {
     case "$response" in
     [yY]|[yY][eE][sS])
       # Create a symlink with an absolute path
-      absolute_path=$(readlink -f "${output_dir}/${exe_name}")
+      absolute_path=$(readlink -f "${output_dir}/${bin_file_name}")
       if ln -sf "${absolute_path}" /usr/local/bin/ 2> /dev/null || sudo ln -sf "${absolute_path}" /usr/local/bin/; then
         symlink_exists='1'
         log "Binary has been linked to '/usr/local/bin'"
@@ -423,7 +530,7 @@ apply_version() {
     return 0
   fi
 
-  pkg_name=$(echo "${pkg_name}" | sed -E "s/${exe_name}/${exe_name}-${version}/")
+  pkg_name=$(echo "${pkg_name}" | sed -E "s/${bin_file_name}/${bin_file_name}-${version}/")
 }
 
 # version_lt returns success (0) if the first version is strictly lower than the second.
@@ -466,9 +573,9 @@ configure() {
   pkg_ext='tar.gz'
   if [ "$os" = 'macos' ]
   then
-    pkg_name="${exe_name}-macos.${pkg_ext}"
+    pkg_name="${bin_file_name}-macos.${pkg_ext}"
   else
-    pkg_name="${exe_name}-${os}-${cpu}.${pkg_ext}"
+    pkg_name="${bin_file_name}-${os}-${cpu}.${pkg_ext}"
   fi
   apply_version
   # Releases before 1.5.0 use the v${version}-${channel} tag format;
@@ -493,24 +600,31 @@ configure() {
 # Function handle_uninstall removes the existing package from the output directory.
 handle_uninstall() {
   # Check if the package is present in the output directory.
-  if [ ! -f "${output_dir}/${exe_name}" ]
+  if [ ! -f "${output_dir}/${bin_file_name}" ]
   then
     error_exit "AdGuard CLI is not installed in '${output_dir}'. Please specify the correct installation directory"
   fi
 
   # Check if proxy server is running
-  if pgrep -x "${exe_name}" > /dev/null
+  if pgrep -x "${bin_file_name}" > /dev/null
   then
     log 'AdGuard CLI is running. Stopping it...'
-    "${output_dir}/${exe_name}" stop
+    "${output_dir}/${bin_file_name}" stop
   fi
 
   # Remove browser integration manifests (if command exists)
   log 'Removing browser integration manifests...'
-  "${output_dir}/${exe_name}" install-browser-integration --uninstall 2>/dev/null || true
+  "${output_dir}/${bin_file_name}" install-browser-integration --uninstall 2>/dev/null || true
+
+  binary_path="$(readlink -f "${output_dir}/${bin_file_name}" 2>/dev/null)" ||
+    binary_path="${output_dir}/${bin_file_name}"
 
   remove_existing
   remove_existing_uninstall
+
+  # A staging directory left by an interrupted update would keep the install
+  # directory from being removed below.
+  rm -rf "${output_dir}/.install"
 
   # Check if the directory is empty
   if [ -z "$(ls -A "${output_dir}")" ]
@@ -532,35 +646,39 @@ handle_uninstall() {
     set -e
   fi
 
-  # Check symlink in /usr/local/bin
-  if [ -L "/usr/local/bin/${exe_name}" ]
-  then
-    set +e
-    log "Remove symlink from '/usr/local/bin'"
-    rm -f "/usr/local/bin/${exe_name}" 2> /dev/null
-    # Check success
-    if [ $? -eq 1 ];
+  # Remove the symlink created by the installer, if any.
+  for dir in $system_bin_dirs
+  do
+    [ -L "${dir}/${bin_file_name}" ] || continue
+    link_target="$(readlink "${dir}/${bin_file_name}")"
+    if [ "$link_target" = "${output_dir}/${bin_file_name}" ] || [ "$link_target" = "$binary_path" ]
     then
-      echo "Starting sudo to remove '/usr/local/bin/${exe_name}'"
-      if sudo rm -f "/usr/local/bin/${exe_name}"; then
-        log "Symlink has been removed from '/usr/local/bin'"
+      log "Remove symlink from '${dir}'"
+      if [ -w "$dir" ]; then
+        rm -f "${dir}/${bin_file_name}"
       else
-        log "Failed to remove symlink from '/usr/local/bin' with sudo"
-      fi
-    else
-      log "Symlink has been removed from '/usr/local/bin'"
+        echo "Starting sudo to remove '${dir}/${bin_file_name}'"
+        sudo rm -f "${dir}/${bin_file_name}"
+      fi || {
+        echo "Failed to remove symlink from '${dir}'" 1>&2
+        symlink_removal_failed='1'
+      }
     fi
-    set -e
-  fi
+  done
 
   # Notify about service files
   echo "Service files are not removed. You can remove them manually if needed from: "
   if [ $os = 'linux' ]
   then
-    echo "    '${XDG_DATA_HOME:-~/.local/share}/${exe_name}'"
+    echo "    '${XDG_DATA_HOME:-~/.local/share}/${bin_file_name}'"
   elif [ $os = 'macos' ]
   then
-    echo "    '~/Library/Application Support/${exe_name}'"
+    echo "    '~/Library/Application Support/${bin_file_name}'"
+  fi
+
+  if [ "$symlink_removal_failed" -eq '1' ]
+  then
+    error_exit 'AdGuard CLI has been uninstalled, but its symlink could not be removed'
   fi
 
   echo 'AdGuard CLI has been uninstalled successfully'
@@ -570,11 +688,11 @@ handle_uninstall() {
 remove_existing() {
   log 'Remove existing package...'
   # Remove executable file
-  rm -f "${output_dir}/${exe_name}"
-  log "'${exe_name}' has been removed from '${output_dir}'"
+  rm -f "${output_dir}/${bin_file_name}"
+  log "'${bin_file_name}' has been removed from '${output_dir}'"
   # Remove .sig file
-  rm -f "${output_dir}/${exe_name}.sig"
-  log "'${exe_name}.sig' has been removed from '${output_dir}'"
+  rm -f "${output_dir}/${bin_file_name}.sig"
+  log "'${bin_file_name}.sig' has been removed from '${output_dir}'"
   # Remove install_cert.sh file
   rm -f "${output_dir}/${install_cert_script}"
   log "'${install_cert_script}' has been removed from '${output_dir}'"
@@ -604,6 +722,40 @@ remove_existing_uninstall() {
     log "'adguard_cli_nm.sig' has been removed from '${output_dir}'"
     # Remove stale adguard_cli_nm.new files left by older installers
     rm -f "${output_dir}/adguard_cli_nm.new" "${output_dir}/adguard_cli_nm.new.sig"
+    # Remove certutil
+    rm -f "${output_dir}/certutil"
+    log "'certutil' has been removed from '${output_dir}'"
+    # Remove certutil.sig
+    rm -f "${output_dir}/certutil.sig"
+    log "'certutil.sig' has been removed from '${output_dir}'"
+}
+
+# Function remove_legacy_files removes the files left in a system binary
+# directory by a previous installation into that directory.  The binary itself
+# is replaced with a symlink later.
+remove_legacy_files() {
+  set -- \
+    "${legacy_dir}/${bin_file_name}.sig" \
+    "${legacy_dir}/${install_cert_script}" \
+    "${legacy_dir}/${bash_completion_script}" \
+    "${legacy_dir}/${defaults_zip}" \
+    "${legacy_dir}/certutil" \
+    "${legacy_dir}/certutil.sig" \
+    "${legacy_dir}/.nosymlink" \
+    "${legacy_dir}/adguard_root_helper" \
+    "${legacy_dir}/adguard_root_helper.sig" \
+    "${legacy_dir}/adguard_root_helper.new" \
+    "${legacy_dir}/adguard_root_helper.new.sig" \
+    "${legacy_dir}/adguard_cli_nm" \
+    "${legacy_dir}/adguard_cli_nm.sig" \
+    "${legacy_dir}/adguard_cli_nm.new" \
+    "${legacy_dir}/adguard_cli_nm.new.sig"
+
+  if [ -w "$legacy_dir" ]; then
+    rm -f "$@"
+  else
+    sudo rm -f "$@"
+  fi || echo "Warning: failed to remove files of the previous installation from '${legacy_dir}'" 1>&2
 }
 
 # Function checks if the package is already present in the output directory.
@@ -614,27 +766,32 @@ handle_existing() {
     exit 0
   fi
 
-  if [ ! -f "${output_dir}/${exe_name}" ]
+  # A previous version could be installed directly into a system binary
+  # directory, before such installations were redirected to /opt.
+  if [ -n "$link_dir" ] && [ -f "${link_dir}/${bin_file_name}" ] && [ ! -L "${link_dir}/${bin_file_name}" ]
+  then
+    legacy_dir="$link_dir"
+  fi
+
+  if [ ! -f "${output_dir}/${bin_file_name}" ] && [ -z "$legacy_dir" ]
   then
     return
   fi
 
-  log "Package ${exe_name} is already present in '${output_dir}'"
+  log "Package ${bin_file_name} is already present in '${legacy_dir:-$output_dir}'"
   PIDFILE=
   # Check if proxy server is running
   if [ $os = 'linux' ]
   then
-    PIDFILE="${XDG_DATA_HOME:-$HOME/.local/share}/${exe_name}/adguard.pid"
+    PIDFILE="${XDG_DATA_HOME:-$HOME/.local/share}/${bin_file_name}/adguard.pid"
   elif [ $os = 'macos' ]
   then
-    PIDFILE="$HOME/Library/Application Support/${exe_name}/adguard.pid"
+    PIDFILE="$HOME/Library/Application Support/${bin_file_name}/adguard.pid"
   fi
   if [ -f "$PIDFILE" ] && pgrep -F "$PIDFILE" > /dev/null
   then
     error_exit "AdGuard CLI is running. Please, stop it before installing"
   fi
-
-  remove_existing
 }
 
 # Function download downloads the package from the url.
@@ -680,9 +837,9 @@ report_success() {
   echo "You can use it by running command:"
   if [ "$symlink_exists" -eq '1' ]
   then
-    echo "    ${exe_name} --help"
+    echo "    ${bin_file_name} --help"
   else
-    echo "    ${output_dir}/${exe_name} --help"
+    echo "    ${output_dir}/${bin_file_name} --help"
   fi
 
   echo
@@ -703,17 +860,21 @@ report_success() {
 install_cert_script='install_cert.sh'
 bash_completion_script='bash-completion.sh'
 defaults_zip='defaults.zip'
-exe_name='adguard-cli'
+bin_file_name='adguard-cli'
+system_bin_dirs='/bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin'
 output_dir=''
 url=''
 channel='nightly'
 verbose='0'
 cpu=''
 os=''
-version='1.5.1-nightly.3'
+version='1.5.1-nightly.4'
 uninstall='0'
 remove_command="rm -f"
 symlink_exists='0'
+link_dir=''
+legacy_dir=''
+symlink_removal_failed='0'
 local_install='0' # Skip the download and use the local archive
 
 parse_opts "$@"
